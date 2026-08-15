@@ -1,0 +1,100 @@
+services:
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: inquiro_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URL=mongodb://admin:admin@mongodb:27017/inquiro?authSource=admin
+      - MONGO_DB=inquiro
+      - VECTOR_DB_HOST=qdrant
+      - VECTOR_DB_PORT=6333
+      - VECTOR_DB_GRPC_PORT=6334
+    volumes:
+      - ./backend:/app
+      - backend_assets:/app/assets
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - mongodb
+      - qdrant
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/welcome"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: inquiro_frontend
+    ports:
+      - "80:80"
+    networks:
+      - frontend
+    depends_on:
+      - backend
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: inquiro_qdrant
+    ports:
+      - "6333:6333"  
+      - "6334:6334"  
+    volumes:
+      - inquiro_qdrant:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__LOG_LEVEL=INFO
+    networks:
+      - backend
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0-jammy
+    container_name: inquiro_mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+    volumes:
+      - inquiro_mongodb:/data/db
+    networks:
+      - backend
+    restart: always
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  backend:
+  frontend:
+
+volumes:
+  inquiro_qdrant:
+  inquiro_mongodb:
+  backend_assets:

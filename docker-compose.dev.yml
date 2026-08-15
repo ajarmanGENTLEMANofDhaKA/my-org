@@ -1,0 +1,90 @@
+services:
+  # Backend API Service (Development with Hot Reload)
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: inquiro_backend_dev
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - MONGO_URL=mongodb://admin:admin@mongodb:27017/inquiro?authSource=admin
+      - MONGO_DB=inquiro
+      - VECTOR_DB_HOST=qdrant
+      - VECTOR_DB_PORT=6333
+      - VECTOR_DB_GRPC_PORT=6334
+    volumes:
+      - ./backend:/app
+      - backend_assets:/app/assets
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - mongodb
+      - qdrant
+    restart: unless-stopped
+    command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000", "--reload"]
+
+  # Frontend React App (Development with Hot Reload)
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: inquiro_frontend_dev
+    ports:
+      - "8080:8080"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_BASE_URL=http://localhost:5000
+    volumes:
+      - ./frontend:/app
+    networks:
+      - frontend
+    depends_on:
+      - backend-dev
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  # Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: inquiro_qdrant_dev
+    ports:
+      - "6333:6333"  
+      - "6334:6334"  
+    volumes:
+      - inquiro_qdrant_dev:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__LOG_LEVEL=DEBUG
+    networks:
+      - backend
+    restart: unless-stopped
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0-jammy
+    container_name: inquiro_mongodb_dev
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+    volumes:
+      - inquiro_mongodb_dev:/data/db
+    networks:
+      - backend
+    restart: unless-stopped
+
+networks:
+  backend:
+  frontend:
+
+volumes:
+  inquiro_qdrant_dev:
+  inquiro_mongodb_dev:
+  backend_assets:
