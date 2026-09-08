@@ -37,7 +37,7 @@ class TranslatorController(BaseController):
             )
             if not translation:
                 logger.error("Failed to generate translation")
-                raise
+                raise RuntimeError("Failed to generate translation: empty model response")
 
             logger.info(f"Successfully translated text to {target_language}")
             return translation.strip()

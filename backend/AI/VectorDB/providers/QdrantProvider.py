@@ -123,7 +123,7 @@ class QdrantProvider(VectorDBInterface):
                 collection_name=collection_name,
                 points=[
                     models.PointStruct(
-                        id=chunk_id,
+                        id=str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_id)),
                         vector=vector,
                         payload={"text": text, "paper_id": paper_id, **(metadata or {})}
                     )
@@ -158,7 +158,7 @@ class QdrantProvider(VectorDBInterface):
                     payload = {"text": texts[j], "paper_id": paper_ids[j], **metadatas[j]}
 
                     point = models.PointStruct(
-                        id=chunk_ids[j],
+                        id=str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_ids[j])),
                         vector=vectors[j],
                         payload=payload
                     )
@@ -178,7 +178,7 @@ class QdrantProvider(VectorDBInterface):
             raise
 
     async def query_search(self, collection_name:str, query_vector:List[float],
-            limit:int = 5, min_score:float = 0.7, return_metadata: bool = False
+            limit:int = 5, min_score:float = 0.55, return_metadata: bool = False
     ):
         if not await self.client.collection_exists(collection_name):
             logger.error(f"Collection '{collection_name}' does not exist.")

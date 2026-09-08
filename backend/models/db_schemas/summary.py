@@ -26,7 +26,7 @@ class Summary(BaseModel):
             {
                 "key": [("summary_project_id", 1), ("summary_paper_id", 1)],
                 "name": "summary_project_id_paper_id_index_1",
-                "unique": True
+                "unique": False
             },
             {
                 "key": [("summary_project_id", 1), ("summary_paper_id", 1), ("id", 1)],

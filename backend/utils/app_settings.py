@@ -23,7 +23,7 @@ class AppSettings(BaseSettings):
     SUMMARY_MODEL_ID: str = "gemini-2.0-flash"
 
     DEFAULT_MAX_INPUT_CHARACTERS: int = 1024
-    DEFAULT_MAX_TOKENS: int = 200
+    DEFAULT_MAX_TOKENS: int = 1000
     DEFAULT_TEMPERATURE: float = 0.1
 
     VECTOR_DB_BACKEND: str = "qdrant"

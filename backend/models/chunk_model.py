@@ -4,6 +4,7 @@ from bson import ObjectId
 from typing import List
 from utils.enums import DatabaseEnums
 from utils import get_logger
+import asyncio
 logger = get_logger(__name__)
 
 
@@ -42,12 +43,16 @@ class ChunkModel(BaseModel):
             logger.error(f"Error retrieving chunk with ID: {chunk_id}: {e}")
             raise
 
-    async def insert_chunks(self, chunks: List[Chunk], batch_size: int=100):
+    async def insert_chunks(self, chunks: List[Chunk], batch_size: int=250):
         try:
             inserted_ids = []
             for i in range(0, len(chunks), batch_size):
-                batch = chunks[i: i+batch_size]  
-                docs = [chunk.dict(by_alias=True, exclude_unset=True) for chunk in batch]
+                batch = chunks[i: i+batch_size]
+                # Serialize Chunk->dict in a thread (CPU-bound for large batches)
+                docs = await asyncio.to_thread(
+                    lambda b: [c.dict(by_alias=True, exclude_unset=True) for c in b],
+                    batch
+                )
                 res = await self.collection.insert_many(docs)
                 inserted_ids.extend(res.inserted_ids)
                 logger.info(f"Inserted batch of {len(docs)} chunks.")

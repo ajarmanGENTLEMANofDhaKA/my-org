@@ -29,7 +29,7 @@ class ApiClient {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
             }
 
             // Handle empty responses
@@ -87,7 +87,7 @@ class ApiClient {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
             }
 
             return await response.json();

@@ -22,6 +22,10 @@ class SummaryController(BaseController):
             section_summaries = []
             sections = await chunk_model.get_chunks_grouped_by_section(paper_id=paper_id)
 
+            if not sections:
+                logger.error(f"No chunks found for paper '{paper_name}' (ID: {paper_id})")
+                raise ValueError(f"No chunks found for paper '{paper_name}' (ID: {paper_id}). Please ensure the paper has extractable text.")
+
             total_sections = len(sections)
             logger.info(f"Processing {total_sections} sections for paper {paper_name}")
 
@@ -63,7 +67,7 @@ class SummaryController(BaseController):
 
             if not section_summaries:
                 logger.error(f"No section summaries were generated for paper {paper_name}")
-                raise
+                raise RuntimeError(f"Failed to generate section summaries for paper '{paper_name}'")
 
             # Reduce Step (combine all section summaries)
             logger.info("Starting reduce step to combine section summaries")
@@ -81,7 +85,7 @@ class SummaryController(BaseController):
                 )
                 if not final_summary:
                     logger.error(f"Failed to generate final summary for {paper_name}")
-                    raise
+                    raise RuntimeError(f"Empty summary returned from model for {paper_name}")
 
                 logger.info(f"Successfully generated hierarchical summary for {paper_name}")
                 return final_summary
@@ -94,7 +98,7 @@ class SummaryController(BaseController):
                 return combined_sections_text
 
         except Exception as e:
-            logger.error(f"Failed section-based summarization for {paper_name}: {e}")
+            logger.error(f"Failed section-based summarization for {paper_name}: {e}", exc_info=True)
             raise
                 
     async def save_summary(self, summary_path, summary_content):        

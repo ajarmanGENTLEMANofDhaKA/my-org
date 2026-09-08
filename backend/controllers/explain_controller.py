@@ -31,7 +31,7 @@ class ExplainController(BaseController):
 
             if not explanation:
                 logger.error("Failed to generate explanation")
-                raise
+                raise RuntimeError("Failed to generate explanation: empty model response")
 
             logger.info(f"Successfully explained text")
             return explanation.strip()

@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import { API_ENDPOINTS } from '@/config/api';
+import { API_ENDPOINTS, API_BASE_URL } from '@/config/api';
 import type { Summary, GenerateSummaryRequest, UpdateSummaryRequest } from '@/types/api';
 
 /**
@@ -74,8 +74,13 @@ export const summaryService = {
      * View/download summary content
      */
     async view(projectId: string, paperId: string, summaryId: string): Promise<string> {
-        return apiClient.get<string>(
-            `/projects/${projectId}/papers/${paperId}/summaries/view/${summaryId}`
+        const response = await fetch(
+            `${API_BASE_URL}/projects/${projectId}/papers/${paperId}/summaries/view/${summaryId}`
         );
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to fetch summary: ${response.statusText}`);
+        }
+        return response.text();
     },
 };

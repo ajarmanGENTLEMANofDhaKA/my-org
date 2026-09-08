@@ -184,51 +184,99 @@ async def delete_project(request: Request, project_id: str):
 
 # Rename a project
 @project_router.put("/{project_id}/rename")
-async def rename_project(request: Request, project_id: str, rename_request: RenameRequest):
-    logger.info(f"Incoming request to rename project: {project_id} to new title: {rename_request.new_name}")
-    
-    project_model = await ProjectModel.get_instance(db_client=request.app.mongodb_client)
+async def rename_project(
+    request: Request,
+    project_id: str,
+    rename_request: RenameRequest
+):
+    logger.info(
+        f"Incoming request to rename project: "
+        f"{project_id} to new title: {rename_request.new_name}"
+    )
+
+    project_model = await ProjectModel.get_instance(
+        db_client=request.app.mongodb_client
+    )
 
     # Check if project exists
-    project = await project_model.get_project_by_id(project_id=project_id)
+    project = await project_model.get_project_by_id(
+        project_id=project_id
+    )
+
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ResponseSignals.PROJECT_NOT_FOUND.value
         )
-    
-    # Check if project with new title already exists
-    existing = await project_model.get_project_by_name(project_title=rename_request.new_name)
+
+    new_name = rename_request.new_name.strip()
+
+    # Validate new project name
+    if not new_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Project name cannot be empty"
+        )
+
+    # Same name check
+    if new_name == project.project_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New project name is the same as the current name"
+        )
+
+    # Check database for duplicate project title
+    existing = await project_model.get_project_by_name(
+        project_title=new_name
+    )
+
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Project with title '{rename_request.new_name}' already exists. Please choose another title."
+            detail=f"Project with title '{new_name}' already exists"
         )
-    
-    path_utils = PathUtils()
-    old_project_path, _, _ = path_utils.get_project_dir(project.project_title)    # assets/library/{project_title}
-    new_project_path, _, _ = path_utils.get_project_dir(rename_request.new_name)
 
-    if Path(new_project_path).exists():
+    # IMPORTANT:
+    # Do NOT use get_project_dir() here because it creates directories.
+    path_utils = PathUtils()
+
+    old_project_path = path_utils.library_dir / project.project_title
+    new_project_path = path_utils.library_dir / new_name
+
+    # Check if destination folder already exists
+    if new_project_path.exists():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Project with title '{rename_request.new_name}' already exists"
+            detail=f"Project folder with title '{new_name}' already exists"
         )
-    if not Path(old_project_path).exists():
+
+    # Check if source folder exists
+    if not old_project_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project folder for '{project.project_title}' does not exist"
         )
-    
+
     try:
-        # Rename project folder in filesystem
-        await asyncio.to_thread(Path(old_project_path).rename, new_project_path)
-        logger.info(f"Project folder renamed successfully: {old_project_path} → {new_project_path}")
-        
+        # Rename project folder
+        await asyncio.to_thread(
+            old_project_path.rename,
+            new_project_path
+        )
+
+        logger.info(
+            f"Project folder renamed successfully: "
+            f"{old_project_path} -> {new_project_path}"
+        )
+
         # Update project title in database
-        project.project_title = rename_request.new_name
+        project.project_title = new_name
+
         await project_model.update_project(project)
-        logger.info(f"Project renamed successfully to {rename_request.new_name}")
+
+        logger.info(
+            f"Project renamed successfully to {new_name}"
+        )
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -237,8 +285,33 @@ async def rename_project(request: Request, project_id: str, rename_request: Rena
                 "project": _serialize_project(project)
             }
         )
+
     except Exception as e:
-        logger.error(f"Error renaming project {project_id}: {e}")
+        logger.error(
+            f"Error renaming project {project_id}: {e}"
+        )
+
+        # Rollback filesystem rename if database update fails
+        if (
+            new_project_path.exists()
+            and not old_project_path.exists()
+        ):
+            try:
+                await asyncio.to_thread(
+                    new_project_path.rename,
+                    old_project_path
+                )
+
+                logger.info(
+                    "Filesystem rename rolled back successfully."
+                )
+
+            except Exception as rollback_error:
+                logger.error(
+                    f"Failed to rollback filesystem rename: "
+                    f"{rollback_error}"
+                )
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ResponseSignals.PROJECT_RENAME_FAILED.value

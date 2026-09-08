@@ -75,16 +75,25 @@ class SummaryModel(BaseModel):
             logger.error(f"Error in get_or_create_summary for {Summary.summary_name}: {e}")
             raise
 
-    async def get_paper_summary(self, summary_project_id: str, summary_paper_id: str):
+    async def get_paper_summary(self, summary_project_id: str, summary_paper_id: str, summary_id: str = None):
         try:    
             query = {"summary_project_id": ObjectId(summary_project_id),
                      "summary_paper_id": ObjectId(summary_paper_id)}
-                
-            record = await self.collection.find(query).to_list(length=None)
-            if not record:
+            if summary_id:
+                query["_id"] = ObjectId(summary_id)
+
+            if summary_id:
+                record = await self.collection.find_one(query)
+                if not record:
+                    logger.warning(f"No summary found with id '{summary_id}' for paper '{summary_paper_id}' in project '{summary_project_id}'")
+                    return None
+                return Summary(**record)
+
+            records = await self.collection.find(query).to_list(length=None)
+            if not records:
                 logger.warning(f"No summaries found for paper '{summary_paper_id}' in project '{summary_project_id}'")
-                return None
-            summaries = Summary(**record)
+                return []
+            summaries = [Summary(**r) for r in records]
             return summaries
         except Exception as e:
             logger.error(f"Error retrieving summaries for paper '{summary_paper_id}' in project '{summary_project_id}': {e}")

@@ -1,14 +1,15 @@
 from ..LLMInterface import LLMInterface
 from ..LLMEnums import GeminiEnums, DocumentTypeEnum
 from google import genai
-from google.genai.types import EmbedContentConfig, GenerateContentConfig, GenerationConfig, Content, Part
+from google.genai.types import EmbedContentConfig, GenerateContentConfig
+import asyncio
 from utils import get_logger
 logger = get_logger(__name__)
 
 class GeminiProvider(LLMInterface):
     def __init__(self, api_key: str,
                 default_max_input_characters: int = 1000,
-                default_max_output_tokens: int = 1000,
+                default_max_output_tokens: int = 8000,
                 default_temperature: float = 0.7):
 
         self.api_key = api_key
@@ -46,85 +47,109 @@ class GeminiProvider(LLMInterface):
         temperature: float = None,
         max_output_tokens: int = None
     ):
-
         if not self.generation_model_id:
             self.logger.error("Generation model for Gemini was not set")
             raise Exception("Generation model for Gemini was not set")
 
-        try:
-            config = GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=temperature or self.default_temperature,
-                max_output_tokens=max_output_tokens or self.default_max_output_tokens,
-            )
+        config = GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=temperature or self.default_temperature,
+            max_output_tokens=max_output_tokens or self.default_max_output_tokens,
+        )
 
-            chat = self.client.aio.chats.create(model=self.generation_model_id)
-            response=await chat.send_message(
-                message=user_prompt,
-                config=config
-            )
-            if not response or not response.text:
-                self.logger.error("No response from Gemini chat completion")
-                return None
-            
-            self.logger.info(f"Received response from Gemini")
-            return response.text
+        for attempt in range(4):
+            try:
+                chat = self.client.aio.chats.create(model=self.generation_model_id)
+                response = await chat.send_message(
+                    message=user_prompt,
+                    config=config
+                )
+                if not response or not response.text:
+                    self.logger.error("No response from Gemini chat completion")
+                    return None
 
-        except Exception as e:
-            self.logger.error(f"Error in chat completion with Gemini: {str(e)}")
-            raise
+                self.logger.info(
+                    f"Received response from Gemini | "
+                    f"text_length={len(response.text or '')} | "
+                    f"finish_reason={getattr(response.candidates[0], 'finish_reason', None) if getattr(response, 'candidates', None) else None}"
+                )
+                return response.text
+
+            except Exception as e:
+                if any(c in str(e) for c in ["429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "high demand", "overloaded"]):
+                    if attempt < 3:
+                        wait_time = (attempt + 1) * 3
+                        self.logger.warning(f"Gemini generation transient error ({str(e)[:60]}), retrying in {wait_time}s... (attempt {attempt+1}/3)")
+                        await asyncio.sleep(wait_time)
+                        continue
+                self.logger.error(f"Error in chat completion with Gemini: {str(e)}")
+                raise
 
     async def embed_text(self, text: str, document_type: str = None):
         if not self.embedding_model_id:
             self.logger.error("Embedding model for Gemini was not set")
             raise Exception("Embedding model for Gemini was not set")
 
-        try:
-            task_type = self.enums.DOCUMENT.value
-            if document_type == DocumentTypeEnum.QUERY.value:
-                task_type = self.enums.QUERY.value
+        task_type = self.enums.DOCUMENT.value
+        if document_type == DocumentTypeEnum.QUERY.value:
+            task_type = self.enums.QUERY.value
 
-            config = EmbedContentConfig(task_type=task_type, 
-                                        output_dimensionality=self.embedding_size)
-            
-            results = await self.client.aio.models.embed_content(
-                model=self.embedding_model_id,
-                contents=text,
-                config=config
-            )
+        config = EmbedContentConfig(task_type=task_type,
+                                    output_dimensionality=self.embedding_size)
 
-            if not results:
-                self.logger.error("Error while embedding text with Gemini")
-                return None
+        for attempt in range(4):
+            try:
+                results = await self.client.aio.models.embed_content(
+                    model=self.embedding_model_id,
+                    contents=text,
+                    config=config
+                )
 
-            return results.embeddings[0].values
+                if not results:
+                    self.logger.error("Error while embedding text with Gemini")
+                    return None
 
-        except Exception as e:
-            self.logger.error(f"Error embedding text with Gemini: {str(e)}")
-            raise
+                return results.embeddings[0].values
+
+            except Exception as e:
+                if any(c in str(e) for c in ["429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "high demand", "overloaded"]):
+                    if attempt < 3:
+                        wait_time = (attempt + 1) * 2
+                        self.logger.warning(f"Gemini embedding transient error, retrying in {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                self.logger.error(f"Error embedding text with Gemini: {str(e)}")
+                raise
 
     async def summarize_text(self, user_prompt: str, system_prompt: str = "", temperature: float = None, max_output_tokens: int = None):
         if not self.summarization_model_id:
             self.logger.error("No model set for summarization with Gemini")
             raise Exception("summarization model for Gemini was not set")
-        
-        try:
-            config = GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=temperature,
-                max_output_tokens=max_output_tokens
-            )
 
-            summary = await self.client.aio.models.generate_content(
-                model=self.summarization_model_id,
-                contents=user_prompt,
-                config=config
-            )
-            return summary.text
-        
-        except Exception as e:
-            self.logger.error(f"Error summarizing text with Gemini: {str(e)}")
-            raise
+        config = GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens
+        )
+
+        for attempt in range(4):
+            try:
+                summary = await self.client.aio.models.generate_content(
+                    model=self.summarization_model_id,
+                    contents=user_prompt,
+                    config=config
+                )
+                return summary.text
+
+            except Exception as e:
+                if any(c in str(e) for c in ["429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "high demand", "overloaded"]):
+                    if attempt < 3:
+                        wait_time = (attempt + 1) * 3
+                        self.logger.warning(f"Gemini summarization transient error ({str(e)[:60]}), retrying in {wait_time}s... (attempt {attempt+1}/3)")
+                        await asyncio.sleep(wait_time)
+                        continue
+                self.logger.error(f"Error summarizing text with Gemini: {str(e)}")
+                raise
 
     async def construct_prompt(self, prompt: str, role: str):
         return {

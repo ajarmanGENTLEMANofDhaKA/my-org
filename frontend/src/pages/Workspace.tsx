@@ -43,8 +43,9 @@ import { usePapers, useUploadPaper, useDeletePaper, useRenamePaper } from "@/hoo
 import { useSummaries, useGenerateSummary, useDeleteSummary } from "@/hooks/useSummaries";
 import { useChat } from "@/hooks/useChat";
 import { useProject } from "@/hooks/useProjects";
-import { translatorService, explainerService, paperService } from "@/services";
+import { translatorService, explainerService, paperService, summaryService } from "@/services";
 import type { Paper, Summary } from "@/types/api";
+import { SummaryViewer } from "@/components/SummaryViewer";
 
 const Workspace = () => {
     const { workspaceId } = useParams();
@@ -74,6 +75,8 @@ const Workspace = () => {
     const [summaryName, setSummaryName] = useState("");
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+      const [summaryContent, setSummaryContent] = useState<string>("");
+      const [isLoadingSummary, setIsLoadingSummary] = useState(false);
     const [isRenamePaperDialogOpen, setIsRenamePaperDialogOpen] = useState(false);
     const [paperToRename, setPaperToRename] = useState<Paper | null>(null);
     const [newPaperName, setNewPaperName] = useState("");
@@ -129,6 +132,39 @@ const Workspace = () => {
         loadPdf(paper);
     };
 
+    // Handle summary view
+    const handleViewSummary = async (summary: Summary) => {
+        if (!workspaceId) return;
+
+        setSelectedItem({
+            type: 'summary',
+            id: summary._id,
+            name: summary.summary_name
+        });
+
+        setSummaryContent("");
+        setIsLoadingSummary(true);
+
+        try {
+            const content = await summaryService.view(
+                workspaceId,
+                summary.summary_paper_id,
+                summary._id
+            );
+
+            setSummaryContent(content);
+        } catch (error) {
+            toast({
+                title: "Failed to load summary",
+                description: error instanceof Error
+                    ? error.message
+                    : "Failed to load summary content.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoadingSummary(false);
+        }
+    };
     // Handle paper download
     const handleDownloadPaper = async (paper: Paper) => {
         if (!workspaceId) return;
@@ -566,7 +602,7 @@ const Workspace = () => {
                                                             >
                                                                 <h4 className="font-medium text-xs truncate">{paper.paper_name}</h4>
                                                                 <span className="text-[10px] text-muted-foreground">
-                                                                    PDF • {(paper.paper_size / 1024 / 1024).toFixed(1)} MB
+                                                                    PDF Ã¢â‚¬Â¢ {(paper.paper_size / 1024 / 1024).toFixed(1)} MB
                                                                 </span>
                                                             </div>
                                                             <DropdownMenu>
@@ -627,7 +663,7 @@ const Workspace = () => {
                                                             <div
                                                                 className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0"
                                                                 onClick={() => {
-                                                                    setSelectedItem({ type: 'summary', id: summary._id, name: summary.summary_name });
+                                                                    handleViewSummary(summary);
                                                                 }}
                                                             >
                                                                 <FileType className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -635,12 +671,12 @@ const Workspace = () => {
                                                             <div
                                                                 className="flex-1 min-w-0"
                                                                 onClick={() => {
-                                                                    setSelectedItem({ type: 'summary', id: summary._id, name: summary.summary_name });
+                                                                    handleViewSummary(summary);
                                                                 }}
                                                             >
                                                                 <h4 className="font-medium text-xs truncate">{summary.summary_name}</h4>
                                                                 <span className="text-[10px] text-muted-foreground">
-                                                                    MD • {(summary.summary_size / 1024).toFixed(1)} KB
+                                                                    MD Ã¢â‚¬Â¢ {(summary.summary_size / 1024).toFixed(1)} KB
                                                                 </span>
                                                             </div>
                                                             <DropdownMenu>
@@ -656,7 +692,7 @@ const Workspace = () => {
                                                                 </DropdownMenuTrigger>
                                                                 <DropdownMenuContent align="end">
                                                                     <DropdownMenuItem onClick={() => {
-                                                                        setSelectedItem({ type: 'summary', id: summary._id, name: summary.summary_name });
+                                                                        handleViewSummary(summary);
                                                                     }}>
                                                                         <FileType className="w-4 h-4 mr-2" />
                                                                         View Summary
@@ -696,7 +732,7 @@ const Workspace = () => {
                                     <h2 className="font-semibold text-lg truncate">{selectedItem.name}</h2>
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {selectedItem.type === 'paper' && selectedPaper ? (
-                                            `PDF Document • Uploaded ${selectedPaper.created_at ? new Date(selectedPaper.created_at).toLocaleDateString() : 'recently'} • ${(selectedPaper.paper_size / 1024 / 1024).toFixed(2)} MB`
+                                            `PDF Document Ã¢â‚¬Â¢ Uploaded ${selectedPaper.created_at ? new Date(selectedPaper.created_at).toLocaleDateString() : 'recently'} Ã¢â‚¬Â¢ ${(selectedPaper.paper_size / 1024 / 1024).toFixed(2)} MB`
                                         ) : (
                                             'Markdown Summary'
                                         )}
@@ -750,10 +786,10 @@ const Workspace = () => {
                                                     <FileText className="w-10 h-10 text-primary" />
                                                 </div>
                                                 <h3 className="font-semibold text-lg mb-2">PDF Viewer</h3>
-                                                <p className="text-sm mb-2 font-medium text-foreground">📄 {selectedItem.name}</p>
+                                                <p className="text-sm mb-2 font-medium text-foreground">Ã°Å¸â€œâ€ž {selectedItem.name}</p>
                                                 {selectedPaper && (
                                                     <p className="text-xs mb-4">
-                                                        Size: {(selectedPaper.paper_size / 1024 / 1024).toFixed(2)} MB •
+                                                        Size: {(selectedPaper.paper_size / 1024 / 1024).toFixed(2)} MB Ã¢â‚¬Â¢
                                                         Uploaded: {selectedPaper.created_at ? new Date(selectedPaper.created_at).toLocaleDateString() : 'recently'}
                                                     </p>
                                                 )}
@@ -762,16 +798,41 @@ const Workspace = () => {
                                     )
                                 ) : (
                                     <div
-                                        className="rounded-lg bg-muted border border-border p-8"
+                                        className="rounded-lg bg-muted border border-border p-6"
                                         onMouseUp={handleTextSelection}
                                     >
-                                        <div className="text-center text-muted-foreground">
-                                            <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
-                                                <FileType className="w-10 h-10 text-accent" />
+                                        <div className="mb-6">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                                                    <FileType className="w-6 h-6 text-accent" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-semibold text-lg">Summary Viewer</h3>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {selectedItem.name}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <h3 className="font-semibold text-lg mb-2">Summary Viewer</h3>
-                                            <p className="text-sm mb-4 font-medium text-foreground">📝 {selectedItem.name}</p>
                                         </div>
+
+                                        {isLoadingSummary ? (
+                                            <div className="flex items-center justify-center py-12">
+                                                <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                                                <span className="text-sm text-muted-foreground">Loading summary...</span>
+                                            </div>
+                                        ) : summaryContent ? (
+                                            <div className="rounded-lg bg-background border border-border p-6">
+                                                <SummaryViewer
+                                                    content={summaryContent}
+                                                    summaryName={selectedItem.name}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-12 text-muted-foreground">
+                                                <FileType className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                                                <p className="text-sm">No summary content available.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </ScrollArea>
