@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 
 class AppSettings(BaseSettings):
@@ -44,7 +46,7 @@ class AppSettings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     
     class Config:
-        env_file = "backend/.env"  
+        env_file = os.getenv("ENV_FILE", str(Path(__file__).resolve().parent.parent / ".env"))
 
 def get_settings() -> AppSettings:
     return AppSettings()
