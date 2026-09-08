@@ -27,6 +27,14 @@ class VectorDBInterface(ABC):
         pass
 
     @abstractmethod
+    async def delete_all_collections(self):
+        pass
+
+    @abstractmethod
+    async def delete_paper_embeddings(self, collection_name: str, paper_id: str):
+        pass
+
+    @abstractmethod
     async def create_collection(self, collection_name: str, embedding_size: int, do_reset: bool = False):
         pass
 
