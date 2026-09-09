@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, status, Request, HTTPException, Response
 from fastapi.responses import JSONResponse, StreamingResponse
-from controllers import PaperController
+from controllers import PaperController, RAGController
 from models import ProjectModel, PaperModel, ChunkModel
 from models.db_schemas import Paper, Chunk
 from utils.enums import ResponseSignals, AssetTypeEnums
@@ -118,6 +118,33 @@ async def upload_paper(request: Request, project_id: str, file: UploadFile = Fil
         inserted_chunks = await asyncio.to_thread(_build_chunks_sync)
 
         chunks_ids = await chunk_model.insert_chunks(inserted_chunks)
+
+        for chunk, chunk_id in zip(inserted_chunks, chunks_ids):
+            chunk.id = chunk_id
+
+        rag_controller = RAGController(
+            vectordb_client=request.app.vectordb_client,
+            generation_client=request.app.generation_client,
+            embedding_client=request.app.embedding_client,
+            template_parser=request.app.template_parser,
+        )
+
+        collection_name = rag_controller.create_collection_name(project_id=project_id)
+        await request.app.vectordb_client.create_collection(
+            collection_name=collection_name,
+            embedding_size=request.app.embedding_client.embedding_size,
+            do_reset=False,
+        )
+
+        await request.app.vectordb_client.delete_paper_embeddings(
+            collection_name=collection_name,
+            paper_id=str(paper.id),
+        )
+
+        await rag_controller.index_into_vdb(
+            collection_name=collection_name,
+            chunks=inserted_chunks,
+        )
 
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
