@@ -30,7 +30,7 @@ class PushRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     limit: Optional[int] = 5
-    RAGFusion: Optional[bool] = False
+    RAGFusion: Optional[bool] = None
 
 class TranslateRequest(BaseModel):
     text: str
