@@ -28,6 +28,8 @@ class AppSettings(BaseSettings):
     DEFAULT_MAX_TOKENS: int = 1000
     DEFAULT_TEMPERATURE: float = 0.1
 
+    RAG_FUSION: bool = False
+
     VECTOR_DB_BACKEND: str = "qdrant"
     VECTOR_DB_HOST: str = "localhost"
     VECTOR_DB_PORT: int = 6333

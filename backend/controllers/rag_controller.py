@@ -1,7 +1,7 @@
 from .base_controller import BaseController
 from models.db_schemas import Project, Chunk
 from AI.LLM.LLMEnums import DocumentTypeEnum
-from typing import List
+from typing import List, Optional
 import json
 import asyncio
 from utils import get_logger
@@ -89,8 +89,11 @@ class RAGController(BaseController):
             logger.error(f"Error generating multiple queries for RagFusion search: {e}")
             return [query]
 
-    async def search(self, project: Project, query: str, limit: int = 10, RAGFusion: bool = True):
+    async def search(self, project: Project, query: str, limit: int = 10, RAGFusion: Optional[bool] = None):
         try:
+            if RAGFusion is None:
+                RAGFusion = getattr(self.app_settings, "RAG_FUSION", False)
+
             collection_name = self.create_collection_name(project_id=str(project.id))
 
             queries = [query]
@@ -137,8 +140,11 @@ class RAGController(BaseController):
             logger.error(f"Error searching VDB for project {str(project.id)}: {e}")
             raise
 
-    async def answer(self, project: Project, query: str, limit: int = 10, RAGFusion: bool = True):
+    async def answer(self, project: Project, query: str, limit: int = 10, RAGFusion: Optional[bool] = None):
         try:
+            if RAGFusion is None:
+                RAGFusion = getattr(self.app_settings, "RAG_FUSION", False)
+
             # Retrieve related documents
             retrieved_documents = await self.search(project=project, query=query, limit=max(limit, 10), RAGFusion=RAGFusion)
 
