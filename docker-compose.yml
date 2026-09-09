@@ -16,7 +16,6 @@ services:
       - VECTOR_DB_PORT=6333
       - VECTOR_DB_GRPC_PORT=6334
     volumes:
-      - ./backend:/app
       - backend_assets:/app/assets
     networks:
       - backend
