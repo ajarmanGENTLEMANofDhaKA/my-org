@@ -53,11 +53,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     payload = verify_token(token)
     
     username: str = payload.get("sub")
-    if username is None:
+    email: str = payload.get("email")
+    if username is None or email is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    return {"username": username, "email": payload.get("email")}
+    return {"username": username, "email": email}
