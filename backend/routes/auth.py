@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from datetime import timedelta, datetime
+from typing import Union
 
 from models.user_model import UserModel
 from models.db_schemas import User
@@ -153,11 +154,34 @@ async def login(
     response_model=UserResponse
 )
 async def get_me(
-    current_user: dict = Depends(get_current_user)
+    current_user: Union[User, UserResponse, dict] = Depends(get_current_user)
 ):
     """Get current user information."""
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if isinstance(current_user, UserResponse):
+        return current_user
+
+    if isinstance(current_user, dict):
+        username = current_user.get("username")
+        email = current_user.get("email")
+    else:
+        username = getattr(current_user, "username", None)
+        email = getattr(current_user, "email", None)
+
+    if not username or not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return UserResponse(
-        username=current_user["username"],
-        email=current_user["email"]
+        username=username,
+        email=email
     )
