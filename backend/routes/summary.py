@@ -213,9 +213,9 @@ async def serve_summary_file(request: Request, project_id: str, paper_id: str, s
             detail=ResponseSignals.SUMMARY_FILE_NOT_FOUND.value
         )
     try:
-        def iter_file(path, chunk_size=1024*1024):
-            with open(path, "r", encoding="utf-8") as f:
-                while chunk := f.read(chunk_size):
+        async def iter_file(path, chunk_size=1024*1024):
+            async with aiofiles.open(path, "r", encoding="utf-8") as f:
+                while chunk := await f.read(chunk_size):
                     yield chunk
 
         return StreamingResponse(
